@@ -582,11 +582,10 @@
                       (string :tag "Targeted SDK path"))
        :safe #'stringp)
 
-     (flycheck-def-option-var flycheck-swift-linked-sources nil swift
+     (flycheck-def-option-var flycheck-swift-linked-sources-list nil swift
        "Source files path to link against. Can be glob, i.e. *.swift"
-       :type '(choice (const :tag "Don't use linked sources" nil)
-                      (string :tag "Linked Sources"))
-       :safe #'stringp)
+       :type '(repeat (directory :tag "Source glob"))
+       :safe #'flycheck-string-list-p)
 
      (flycheck-def-option-var flycheck-swift-framework-search-paths nil swift
        "A list of framework search paths"
@@ -614,30 +613,31 @@
        "Flycheck plugin for for Apple's Swift programming language."
        :command ("swift"
                  "-frontend" "-parse"
-                 (option "-sdk" flycheck-swift-sdk-path)
-                 (option-list "-F" flycheck-swift-framework-search-paths)
-                 ;; Swift compiler will complain about redeclaration
-                 ;; if we will include original file along with
-                 ;; temporary source file created by flycheck.
-                 ;; We also don't want a hidden emacs interlock files.
-                 (eval
-                  (let (source file)
-                    (when flycheck-swift-linked-sources
-                      (setq source (car (flycheck-substitute-argument 'source 'swift)))
-                      (setq file (file-name-nondirectory source))
-                      (cl-remove-if-not
-                       #'(lambda (path)
-                           (and
-                            (eq (string-match ".#" path) nil)
-                            (eq (string-match file path) nil)))
-                       (file-expand-wildcards flycheck-swift-linked-sources)))))
-                 (option "-target" flycheck-swift-target)
-                 (option "-import-objc-header" flycheck-swift-import-objc-header)
-                 (eval
-                  (mapcan
-                   #'(lambda (path) (list "-Xcc" (concat "-I" path)))
-                   flycheck-swift-cc-include-search-paths))
-                 "-primary-file" source)
+                          (option "-sdk" flycheck-swift-sdk-path)
+                          (option-list "-F" flycheck-swift-framework-search-paths)
+                          ;; Swift compiler will complain about redeclaration
+                          ;; if we will include original file along with
+                          ;; temporary source file created by flycheck.
+                          ;; We also don't want a hidden emacs interlock files.
+                          (eval
+                           (let (source file)
+                             (when flycheck-swift-linked-sources-list
+                               (setq source (car (flycheck-substitute-argument 'source 'swift)))
+                               (setq file (file-name-nondirectory source))
+                               (cl-remove-if-not
+                                #'(lambda (path)
+                                    (and
+                                     (eq (string-match ".#" path) nil)
+                                     (eq (string-match file path) nil)))
+                                (mapcan 'file-expand-wildcards flycheck-swift-linked-sources-list)))))
+                          (option "-target" flycheck-swift-target)
+                          (option "-import-objc-header" flycheck-swift-import-objc-header)
+                          (eval
+                           (mapcan
+                            #'(lambda (path) (list "-Xcc" (concat "-I" path)))
+                            flycheck-swift-cc-include-search-paths))
+                          "-primary-file" source)
+
        :error-patterns
        ((error line-start (file-name) ":" line ":" column ": "
                "error: " (message) line-end)
